@@ -1,0 +1,36 @@
+name: Hourly AQI Collection
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install requests pandas
+
+      - name: 运行数据采集脚本
+        env:
+          CNEMC_ACCESS_KEY: ${{ secrets.CNEMC_ACCESS_KEY }}
+        run: python src/etl/fetch_api.py
+
+      - name: 提交并推送新数据
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git pull --rebase origin main
+          git add data/
+          git commit -m "🤖 自动采集 $(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M')" || echo "无变化"
+          git push origin main
