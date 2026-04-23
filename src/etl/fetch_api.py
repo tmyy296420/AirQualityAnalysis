@@ -52,8 +52,88 @@ def save_to_database(df):
         return
 
     conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
 
-    # 重命名列以匹配数据库
+    # ========== 1. 自动创建表（如果不存在） ==========
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sites (
+            station_code TEXT PRIMARY KEY,
+            station_name TEXT NOT NULL,
+            city TEXT,
+            longitude REAL,
+            latitude REAL
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS latest_aqi (
+            station_code TEXT PRIMARY KEY,
+            station_name TEXT,
+            time TEXT NOT NULL,
+            aqi INTEGER,
+            pm25 REAL,
+            pm10 REAL,
+            so2 REAL,
+            no2 REAL,
+            co REAL,
+            o3 REAL,
+            longitude REAL,
+            latitude REAL,
+            UNIQUE(station_code) ON CONFLICT REPLACE
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS history_aqi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_code TEXT NOT NULL,
+            station_name TEXT,
+            city TEXT,
+            time TEXT NOT NULL,
+            aqi INTEGER,
+            pm25 REAL,
+            pm10 REAL,
+            so2 REAL,
+            no2 REAL,
+            co REAL,
+            o3 REAL,
+            longitude REAL,
+            latitude REAL,
+            UNIQUE(station_code, time) ON CONFLICT REPLACE
+        )
+    ''')
+
+    # ========== 2. 从 CSV 导入站点数据（如果 sites 表为空） ==========
+    sites_csv = os.path.join(DATA_DIR, 'sites_metadata.csv')
+    if os.path.exists(sites_csv):
+        c.execute("SELECT COUNT(*) FROM sites")
+        if c.fetchone()[0] == 0:
+            import csv
+            # 尝试多种编码
+            for enc in ['gbk', 'utf-8', 'utf-8-sig']:
+                try:
+                    with open(sites_csv, 'r', encoding=enc) as f:
+                        reader = csv.reader(f)
+                        # 跳过标题行
+                        next(reader)
+                        count = 0
+                        for row in reader:
+                            if len(row) >= 5 and row[3].strip() and row[4].strip():
+                                try:
+                                    c.execute('''
+                                        INSERT OR IGNORE INTO sites
+                                        (station_code, station_name, city, longitude, latitude)
+                                        VALUES (?, ?, ?, ?, ?)
+                                    ''', (row[0].strip(), row[1].strip(), row[2].strip(),
+                                          float(row[3].strip()), float(row[4].strip())))
+                                    count += 1
+                                except:
+                                    continue
+                        print(f"✅ 已从 CSV 导入 {count} 个站点元数据")
+                    break
+                except UnicodeDecodeError:
+                    continue
+    conn.commit()
+
+    # ========== 3. 关联经纬度（重命名列等） ==========
     df_db = df.rename(columns={
         'Station_ID_C': 'station_code',
         'PositionName': 'station_name',
@@ -66,27 +146,24 @@ def save_to_database(df):
         'SO2': 'so2'
     })
 
-    # 构造时间字段
     df_db['time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    df_db['station_code'] = df_db['station_code'].str.strip().str.upper()
 
-    # 从 sites 表获取经纬度和城市信息
+    # 读取站点表（此时已保证存在）
     sites_df = pd.read_sql("SELECT station_code, city, longitude, latitude FROM sites", conn)
+    sites_df['station_code'] = sites_df['station_code'].str.strip().str.upper()
     df_db = df_db.merge(sites_df, on='station_code', how='left')
 
-    # 只选择需要的字段
     cols = ['station_code', 'station_name', 'city', 'time', 'aqi',
             'pm25', 'pm10', 'so2', 'no2', 'co', 'o3', 'longitude', 'latitude']
     df_to_save = df_db[cols]
 
-    # 1. 写入实时表（覆盖模式，只保留最新数据）
+    # ========== 4. 写入表 ==========
     df_to_save.to_sql('latest_aqi', conn, if_exists='replace', index=False)
-
-    # 2. 追加到历史表
     df_to_save.to_sql('history_aqi', conn, if_exists='append', index=False)
 
     conn.close()
 
-    # 统计经纬度匹配情况
     matched = df_db['longitude'].notna().sum()
     total = len(df_db)
     print(f"✅ 实时表已更新，历史表追加 {total} 条记录")
