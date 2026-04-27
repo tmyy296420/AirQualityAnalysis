@@ -33,5 +33,5 @@ jobs:
       - name: Auto commit database
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 auto: hourly collection $(date -u '+%Y-%m-%d %H:%M UTC')"
+          commit_message: "auto: $(date -u '+%Y-%m-%d %H:%M UTC')"
           file_pattern: 'data/air_quality.db'
