@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -30,8 +32,13 @@ jobs:
           CNEMC_ACCESS_KEY: ${{ secrets.CNEMC_ACCESS_KEY }}
         run: python -m src.etl.fetch_api
 
-      - name: Auto commit database
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "auto: $(date -u '+%Y-%m-%d %H:%M UTC')"
-          file_pattern: 'data/air_quality.db'
+      - name: Commit and push database
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/air_quality.db
+          git diff --cached --quiet && echo "No changes to commit" || (
+            git commit -m "auto: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull origin main --rebase || true
+            git push
+          )
