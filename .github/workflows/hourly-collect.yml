@@ -30,13 +30,8 @@ jobs:
           CNEMC_ACCESS_KEY: ${{ secrets.CNEMC_ACCESS_KEY }}
         run: python -m src.etl.fetch_api
 
-      - name: Commit and push database
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/air_quality.db
-          git diff --cached --quiet && echo "No changes to commit" || (
-            git commit -m "auto: $(date -u '+%Y-%m-%d %H:%M UTC')"
-            git pull origin main --rebase
-            git push
-          )
+      - name: Auto commit database
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 auto: hourly collection $(date -u '+%Y-%m-%d %H:%M UTC')"
+          file_pattern: 'data/air_quality.db'
