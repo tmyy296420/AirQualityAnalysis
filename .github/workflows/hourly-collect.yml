@@ -37,5 +37,6 @@ jobs:
           git add data/air_quality.db
           git diff --cached --quiet && echo "No changes to commit" || (
             git commit -m "auto: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull origin main --rebase
             git push
           )
