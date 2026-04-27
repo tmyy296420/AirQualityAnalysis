@@ -1,0 +1,25 @@
+﻿# 数据原始备份（体积大，不入库）
+data/*.csv
+data/*.json
+logs/
+*.db-journal
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 环境
+venv/
+env/
+air/
+.vscode/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 密钥
+.env
