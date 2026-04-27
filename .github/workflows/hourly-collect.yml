@@ -2,7 +2,7 @@ name: Hourly Air Quality Collection
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
